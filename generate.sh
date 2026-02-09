@@ -7,8 +7,8 @@ ROS_DISTRO=${2:-noetic}
 # 导出 ROSDISTRO 索引 URL 以确保 bloom/rosdep 使用正确的源
 export ROSDISTRO_INDEX_URL=https://github.com/tianbot/rosdistro/raw/master/index-v4.yaml
 
-# 遍历目录查找 package.xml，排除隐藏目录（如 .git, .pc）
-find . -type d \( -path "*/.*" \) -prune -o -type f -name 'package.xml' -print | while read -r package_xml; do
+# 遍历目录查找 package.xml，排除隐藏目录（如 .git, .pc）以及工具目录（rosdep, rosdistro, rospkg）
+find . -type d \( -path "*/.*" -o -path "./rosdep" -o -path "./rosdistro" -o -path "./rospkg" \) -prune -o -type f -name 'package.xml' -print | while read -r package_xml; do
     # 获取包含 package.xml 的目录路径
     dir=$(dirname "$package_xml")
     

@@ -41,6 +41,7 @@ jobs:
             dpkg-dev \
             debhelper \
             build-essential \
+            cmake \
             git \
             sudo \
             curl \
@@ -85,12 +86,13 @@ jobs:
           mkdir -p artifacts
           
           # 集中安装所有系统依赖
-          # 通过 --from-paths . 扫描整个工作空间，使 rosdep 知道哪些包是本地源码，从而只安装真正的系统依赖
+          # 排除 rosdep, rosdistro, rospkg 目录，这些目录包含工具测试数据，会导致解析失败
           echo "正在安装系统依赖..."
-          rosdep install --from-paths . --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} --rosdistro noetic || echo "部分依赖可能无法解析，继续构建..."
+          rosdep install --from-paths . --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} --rosdistro noetic --exclude rosdep rosdistro rospkg || echo "部分依赖可能无法解析，继续构建..."
 
           # 遍历所有含有 debian 目录的包
-          find . -maxdepth 3 -name "debian" -type d | while read -r debian_path; do
+          # 同样排除非 ROS 报的工具目录
+          find . -maxdepth 3 -name "debian" -type d | grep -vE "./(rosdep|rosdistro|rospkg)/" | while read -r debian_path; do
             pkg_dir=$(dirname "$debian_path")
             echo "--------------------------------------------------"
             echo "正在构建软件包: $pkg_dir"
