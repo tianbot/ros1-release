@@ -47,10 +47,9 @@ jobs:
             gnupg2 \
             lsb-release
           
-          # 添加 ROS 官方源（即使是自定义发布，也需要它来解析系统依赖）
-          curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.key | sudo apt-key add -
-          echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list
-          apt-get update
+          # 针对 Ubuntu 22.04/24.04 的 ROS 1 兼容性处理
+          # 官方 ROS 1 不支持这些版本，因此不添加官方 apt 仓库（避免 404）
+          # 我们依靠本仓库源码构建所有 ROS 组件，rosdep 仅用于安装 Ubuntu 原生系统依赖
           
           # 设置 Git 身份，某些 bloom 操作需要
           git config --global user.email "copilot@example.com"
@@ -85,24 +84,20 @@ jobs:
           # 创建存放结果的文件夹
           mkdir -p artifacts
           
+          # 集中安装所有系统依赖
+          # 通过 --from-paths . 扫描整个工作空间，使 rosdep 知道哪些包是本地源码，从而只安装真正的系统依赖
+          echo "正在安装系统依赖..."
+          rosdep install --from-paths . --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} --rosdistro noetic || echo "部分依赖可能无法解析，继续构建..."
+
           # 遍历所有含有 debian 目录的包
-          # 注意：rosdep install 需要知道目标发行版
           find . -maxdepth 3 -name "debian" -type d | while read -r debian_path; do
             pkg_dir=$(dirname "$debian_path")
             echo "--------------------------------------------------"
             echo "正在构建软件包: $pkg_dir"
             echo "--------------------------------------------------"
             
-            # 安装该包特有的系统构建依赖
-            # 使用 --rosdistro 参数明确指定 noetic
-            rosdep install --from-paths "$pkg_dir" --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} --rosdistro noetic || true
-            
             # 执行打包命令
-            # -us -uc: 不签名
-            # -b: 仅构建二进制包
-            # -d: 关键！跳过构建依赖检查。
-            # 理由：由于我们正在构建整个 ROS 栈，像 ros-noetic-catkin 这样的包此刻还不在系统的 apt 仓库中，
-            # 必须跳过检查才能完成打包。
+            # -d: 跳过构建依赖检查。理由：此时依赖的 ROS 包尚未安装到系统。
             (cd "$pkg_dir" && dpkg-buildpackage -us -uc -b -d) || echo "构建 $pkg_dir 失败"
           done
 
