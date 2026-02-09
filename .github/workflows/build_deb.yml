@@ -22,6 +22,8 @@ jobs:
     env:
       ROSDISTRO_INDEX_URL: https://github.com/tianbot/rosdistro/raw/master/index-v4.yaml
       DEBIAN_FRONTEND: noninteractive
+      ROS_DISTRO: noetic
+      ROS_PYTHON_VERSION: 3
 
     steps:
       - name: Checkout code
@@ -41,7 +43,14 @@ jobs:
             build-essential \
             git \
             sudo \
-            curl
+            curl \
+            gnupg2 \
+            lsb-release
+          
+          # 添加 ROS 官方源（即使是自定义发布，也需要它来解析系统依赖）
+          curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.key | sudo apt-key add -
+          echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list
+          apt-get update
           
           # 设置 Git 身份，某些 bloom 操作需要
           git config --global user.email "copilot@example.com"
@@ -63,7 +72,6 @@ jobs:
           fi
           
           # 执行 rosdep update
-          # 去掉不支持的 --allow-root 参数，rosdep 在 root 下运行时会自动处理
           rosdep update
 
       - name: Generate Debian metadata
@@ -75,32 +83,34 @@ jobs:
       - name: Build DEB packages
         run: |
           # 创建存放结果的文件夹
-          mkdir -p debs_output
+          mkdir -p artifacts
           
           # 遍历所有含有 debian 目录的包
-          find . -name "debian" -type d | while read -r debian_path; do
+          # 注意：rosdep install 需要知道目标发行版
+          find . -maxdepth 3 -name "debian" -type d | while read -r debian_path; do
             pkg_dir=$(dirname "$debian_path")
             echo "--------------------------------------------------"
             echo "正在构建软件包: $pkg_dir"
             echo "--------------------------------------------------"
             
-            # 安装该包特有的构建依赖
-            # 注意：在 noble 上安装 noetic 依赖可能会失败，取决于仓库配置
-            rosdep install --from-paths "$pkg_dir" --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} || true
+            # 安装该包特有的系统构建依赖
+            # 使用 --rosdistro 参数明确指定 noetic
+            rosdep install --from-paths "$pkg_dir" --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} --rosdistro noetic || true
             
             # 执行打包命令
-            # -bx: 二进制打包，忽略源码包错误
-            (cd "$pkg_dir" && dpkg-buildpackage -us -uc -b) || echo "构建 $pkg_dir 失败"
+            # -us -uc: 不签名
+            # -b: 仅构建二进制包
+            # -d: 关键！跳过构建依赖检查。
+            # 理由：由于我们正在构建整个 ROS 栈，像 ros-noetic-catkin 这样的包此刻还不在系统的 apt 仓库中，
+            # 必须跳过检查才能完成打包。
+            (cd "$pkg_dir" && dpkg-buildpackage -us -uc -b -d) || echo "构建 $pkg_dir 失败"
           done
 
       - name: Collect DEB files
         run: |
           # 收集所有生成的 .deb 文件到单一目录
-          # dpkg-buildpackage 通常把文件放在软件包目录同级
-          mkdir -p artifacts
-          find . -name "*.deb" -type f | while read -r deb_file; do
-            cp "$deb_file" artifacts/
-          done
+          # dpkg-buildpackage 生成的文件通常在该目录的父目录
+          find . -name "*.deb" -type f -exec cp {} artifacts/ \;
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
