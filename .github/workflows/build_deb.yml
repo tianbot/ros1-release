@@ -37,7 +37,6 @@ jobs:
             python3-pip \
             python3-setuptools \
             python3-catkin-pkg \
-            python3-catkin-tools \
             python3-wheel \
             fakeroot \
             dpkg-dev \
@@ -60,8 +59,8 @@ jobs:
           
           # 使用 pip 安装 ROS 工具以确保在不同版本的 Ubuntu 上都能运行
           # 在 Ubuntu 24.04+ 中由于 PEP 668 需要 --break-system-packages
-          pip3 install --upgrade bloom rosdep rosinstall-generator vcstool --break-system-packages || \
-          pip3 install --upgrade bloom rosdep rosinstall-generator vcstool
+          pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools --break-system-packages || \
+          pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools
           
           # 手动模拟 rosdep init 使用 tianbot 源
           mkdir -p /etc/ros/rosdep/sources.list.d/
