@@ -106,41 +106,34 @@ jobs:
         run: |
           mkdir -p artifacts
           
-          # 集中安装所有系统依赖
-          # 使用 find 预过滤出合法包路径，解决 rosdep 不支持 --exclude 的问题
           echo "正在安装系统依赖..."
-          PKG_PATHS=$(find . -maxdepth 4 -name "package.xml" | grep -vE "/(\.|rosdep|rosdistro|rospkg|test|tests)/" | xargs -n1 dirname)
+          # 排除隐藏目录、测试目录和特定忽略目录
+          PKG_PATHS=$(find . -maxdepth 4 -name "package.xml" -not -path "*/.*" | grep -vE "/(rosdep|rosdistro|rospkg|test|tests)/" | xargs -n1 dirname | sort -u)
           rosdep install --from-paths $PKG_PATHS --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} --rosdistro noetic || echo "部分系统依赖可能无法安装，尝试继续..."
 
-          # 为了解决构建依赖顺序问题，我们需要按拓扑排序构建
-          # catkin list --topological 输出格式通常为 "- pkg_name (path)"
-          # 我们使用 awk 提取括号中的路径
-          catkin list --topological | grep "(" | grep -vE "/(rosdep|rosdistro|rospkg|test|tests)/" | awk -F'[()]' '{print $2}' | while read -r pkg_path; do
+          # 使用 Python 脚本获取拓扑排序，比解析 catkin 命令行输出更可靠
+          # catkin_pkg.topological_order 会返回一个包含 (path, package_obj) 的列表
+          ORDERED_PATHS=$(python3 -c "import os; from catkin_pkg.topological_order import topological_order; [print(os.path.relpath(pkg[0], os.getcwd())) for pkg in topological_order('.') if pkg[1] is not None]")
+          
+          echo "$ORDERED_PATHS" | while read -r pkg_path; do
+            if [ -z "$pkg_path" ] || [ "$pkg_path" = "." ]; then continue; fi
+            
+            # 过滤掉不需要构建的目录
+            if echo "$pkg_path" | grep -qE "/(rosdep|rosdistro|rospkg|test|tests)/"; then continue; fi
+            
             if [ -d "$pkg_path/debian" ]; then
-              pkg_normalized_path=$(echo "$pkg_path" | xargs)
-              pkg_name=$(basename "$pkg_normalized_path")
-              echo "--------------------------------------------------"
-              echo "正在构建并安装软件包: $pkg_name ($pkg_normalized_path)"
-              echo "--------------------------------------------------"
-              
-              # 编译
-              (cd "$pkg_normalized_path" && dpkg-buildpackage -us -uc -b -d) || { echo "构建 $pkg_name 失败"; continue; }
-              
-              # 立即安装生成的 deb，以便后续包能够找到依赖
-              find "$pkg_normalized_path/.." -maxdepth 1 -name "*.deb" -type f -exec dpkg -i {} + || apt-get install -f -y
-            fi
-          done
+              pkg_name=$(basename "$pkg_path")
               echo "--------------------------------------------------"
               echo "正在构建并安装软件包: $pkg_name ($pkg_path)"
               echo "--------------------------------------------------"
               
-              # 编译
-              # -d: 跳过构建依赖检查。理由：虽然我们已尽可能排序安装，但在复杂循环依赖下 -d 仍是必要的。
+              # 编译 (-d 跳过依赖检查，因为我们会立即手动安装上一轮生成的 deb)
               (cd "$pkg_path" && dpkg-buildpackage -us -uc -b -d) || { echo "构建 $pkg_name 失败"; continue; }
               
               # 立即安装生成的 deb，以便后续包能够找到依赖（CMake/Headers）
               # dpkg-buildpackage 生成的 deb 通常在源码目录同级
-              find "$pkg_path/.." -maxdepth 1 -name "*.deb" -type f -exec dpkg -i {} + || apt-get install -f -y
+              PARENT_DIR=$(dirname "$pkg_path")
+              find "$PARENT_DIR" -maxdepth 1 -name "*.deb" -type f -exec dpkg -i {} + || apt-get install -f -y
             fi
           done
 

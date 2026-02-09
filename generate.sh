@@ -14,7 +14,7 @@ rm -f "$LOCAL_ROSDEP_YAML"
 touch "$LOCAL_ROSDEP_YAML"
 
 # 遍历所有 package.xml 生成映射： pkg_name -> ros-noetic-pkg-name
-find . -type d \( -path "*/.*" -o -path "./rosdep" -o -path "./rosdistro" -o -path "./rospkg" -o -name "test" -o -name "tests" \) -prune -o -type f -name 'package.xml' -print | while read -r pkg_xml; do
+find . \( -name ".*" -o -path "./rosdep" -o -path "./rosdistro" -o -path "./rospkg" -o -name "test" -o -name "tests" \) -prune -o -type f -name 'package.xml' -print | while read -r pkg_xml; do
     pkg_name=$(grep -oPm1 "(?<=<name>)[^<]+" "$pkg_xml")
     deb_name="ros-noetic-$(echo "$pkg_name" | tr '_' '-')"
     echo "$pkg_name:" >> "$LOCAL_ROSDEP_YAML"
@@ -26,7 +26,7 @@ sudo sh -c "echo 'yaml file://$LOCAL_ROSDEP_YAML' > /etc/ros/rosdep/sources.list
 rosdep update
 
 # 遍历目录执行 bloom-generate
-find . -type d \( -path "*/.*" -o -path "./rosdep" -o -path "./rosdistro" -o -path "./rospkg" -o -name "test" -o -name "tests" \) -prune -o -type f -name 'package.xml' -print | while read -r package_xml; do
+find . \( -name ".*" -o -path "./rosdep" -o -path "./rosdistro" -o -path "./rospkg" -o -name "test" -o -name "tests" \) -prune -o -type f -name 'package.xml' -print | while read -r package_xml; do
     dir=$(dirname "$package_xml")
     echo "在目录 $dir 中发现了 package.xml，执行 bloom-generate..."
     (cd "$dir" && bloom-generate rosdebian --os-name ubuntu --os-version "$OS_VERSION" --ros-distro "$ROS_DISTRO") || echo "警告: $dir 上的 bloom-generate 失败"
