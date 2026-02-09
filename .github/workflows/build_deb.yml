@@ -56,7 +56,8 @@ jobs:
           curl -o /etc/ros/rosdep/sources.list.d/20-default.list https://github.com/tianbot/rosdistro/raw/master/rosdep/sources.list.d/20-default.list
           
           # 执行 rosdep update
-          rosdep update
+          # 在容器中以 root 运行需要 --allow-root
+          rosdep update --allow-root
 
       - name: Generate Debian metadata
         run: |
