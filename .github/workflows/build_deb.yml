@@ -83,10 +83,20 @@ jobs:
 
       - name: Install System Dependencies
         run: |
+          echo "正在更新软件包列表..."
+          apt-get update
+          
           echo "正在安装系统依赖..."
           # 彻底排除隐藏目录（如 .pc）和测试目录
           PKG_PATHS=$(find . -maxdepth 4 -name "package.xml" | grep -vE "/\.|/(rosdep|rosdistro|rospkg|test|tests)/" | xargs -n1 dirname | sort -u)
-          rosdep install --from-paths $PKG_PATHS --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} --rosdistro noetic || echo "部分系统依赖可能无法安装，尝试继续..."
+          
+          # 使用 --skip-keys 忽略那些已经通过 pip 安装或在 24.04 上名称变更的包
+          # opencv2 通常映射到 libopencv-dev，但有些规则可能过时
+          rosdep install --from-paths $PKG_PATHS --ignore-src -r -y \
+            --os=ubuntu:${{ matrix.os_version }} \
+            --rosdistro noetic \
+            --skip-keys "python3-rospkg python3-catkin-pkg python3-rosdep python3-rosdistro opencv2" \
+            || echo "部分系统依赖可能无法安装，尝试继续..."
 
       - name: Build and Install Source Packages
         run: |

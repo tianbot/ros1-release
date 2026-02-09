@@ -4,7 +4,11 @@ FROM ${BASE_IMAGE}
 ARG OS_VERSION=jammy
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y \
+# 启用 universe 和 multiverse 仓库并更新
+RUN apt-get update && apt-get install -y software-properties-common && \
+    add-apt-repository universe && \
+    add-apt-repository multiverse && \
+    apt-get update && apt-get install -y \
     python3-pip \
     python3-setuptools \
     python3-catkin-pkg \

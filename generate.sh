@@ -11,8 +11,16 @@ echo "正在生成本地 rosdep 映射以解决内部依赖解析问题..."
 # 创建本地 rosdep yaml 文件
 LOCAL_ROSDEP_YAML="/tmp/local_rosdep.yaml"
 rm -f "$LOCAL_ROSDEP_YAML"
-# 预先注入一个虚拟条目或注释，确保文件不为空且符合 YAML 字典格式
-echo "# Local ROS packages mapping" > "$LOCAL_ROSDEP_YAML"
+# 预先注入一些已知在 Ubuntu 22.04/24.04 上有问题的映射
+cat <<EOF > "$LOCAL_ROSDEP_YAML"
+# Local ROS packages and compatibility mappings
+opencv2:
+  ubuntu: [libopencv-dev]
+python3-rospkg:
+  ubuntu: [python3-pip]
+python3-catkin-pkg:
+  ubuntu: [python3-pip]
+EOF
 
 # 遍历所有 package.xml 生成映射： pkg_name -> ros-noetic-pkg-name
 # 排除 .git, .pc 等目录
