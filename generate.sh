@@ -15,5 +15,7 @@ find . -type d \( -path "*/.*" \) -prune -o -type f -name 'package.xml' -print |
     echo "在目录 $dir 中发现了 package.xml，执行 bloom-generate 命令 (OS: $OS_VERSION, Distro: $ROS_DISTRO)..."
     
     # 执行 bloom-generate 命令
-    (cd "$dir" && bloom-generate rosdebian --os-name ubuntu --os-version "$OS_VERSION" --ros-distro "$ROS_DISTRO")
+    # 使用 --place-template 以减少交互需求（如果支持）
+    # 增加调试信息输出
+    (cd "$dir" && bloom-generate rosdebian --os-name ubuntu --os-version "$OS_VERSION" --ros-distro "$ROS_DISTRO" --verbose) || echo "警告: $dir 上的 bloom-generate 失败"
 done

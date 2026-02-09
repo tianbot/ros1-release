@@ -21,6 +21,7 @@ jobs:
     
     env:
       ROSDISTRO_INDEX_URL: https://github.com/tianbot/rosdistro/raw/master/index-v4.yaml
+      DEBIAN_FRONTEND: noninteractive
 
     steps:
       - name: Checkout code
@@ -53,11 +54,17 @@ jobs:
           
           # 手动模拟 rosdep init 使用 tianbot 源
           mkdir -p /etc/ros/rosdep/sources.list.d/
-          curl -o /etc/ros/rosdep/sources.list.d/20-default.list https://github.com/tianbot/rosdistro/raw/master/rosdep/sources.list.d/20-default.list
+          curl -sSL https://github.com/tianbot/rosdistro/raw/master/rosdep/sources.list.d/20-default.list -o /etc/ros/rosdep/sources.list.d/20-default.list
+          
+          # 验证文件是否成功下载且不为空
+          if [ ! -s /etc/ros/rosdep/sources.list.d/20-default.list ]; then
+            echo "错误: 无法下载 rosdep 列表文件"
+            exit 1
+          fi
           
           # 执行 rosdep update
-          # 在容器中以 root 运行需要 --allow-root
-          rosdep update --allow-root
+          # 去掉不支持的 --allow-root 参数，rosdep 在 root 下运行时会自动处理
+          rosdep update
 
       - name: Generate Debian metadata
         run: |
