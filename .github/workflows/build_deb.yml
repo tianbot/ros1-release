@@ -106,16 +106,30 @@ jobs:
         run: |
           mkdir -p artifacts
           
-          # 集中安装系统依赖，排除非包目录
+          # 集中安装所有系统依赖
+          # 使用 find 预过滤出合法包路径，解决 rosdep 不支持 --exclude 的问题
           echo "正在安装系统依赖..."
-          rosdep install --from-paths . --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} --rosdistro noetic --exclude rosdep rosdistro rospkg test tests || echo "部分系统依赖可能无法安装，尝试继续..."
+          PKG_PATHS=$(find . -maxdepth 4 -name "package.xml" | grep -vE "/(\.|rosdep|rosdistro|rospkg|test|tests)/" | xargs -n1 dirname)
+          rosdep install --from-paths $PKG_PATHS --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} --rosdistro noetic || echo "部分系统依赖可能无法安装，尝试继续..."
 
-          # 为了解决构建依赖顺序问题（如 roscpp 依赖 catkin），我们需要按拓扑排序构建
-          # 使用 catkin_tools 获取排序后的路径列表
-          # 注意：排除包含干扰 package.xml 的路径
-          catkin list --topological-order --path . | grep -vE "^(rosdep|rosdistro|rospkg|test|tests)" | while read -r pkg_name pkg_path; do
-            # 检查该路径是否有生成的 debian 目录
+          # 为了解决构建依赖顺序问题，我们需要按拓扑排序构建
+          # catkin list --topological 输出格式通常为 "- pkg_name (path)"
+          # 我们使用 awk 提取括号中的路径
+          catkin list --topological | grep "(" | grep -vE "/(rosdep|rosdistro|rospkg|test|tests)/" | awk -F'[()]' '{print $2}' | while read -r pkg_path; do
             if [ -d "$pkg_path/debian" ]; then
+              pkg_normalized_path=$(echo "$pkg_path" | xargs)
+              pkg_name=$(basename "$pkg_normalized_path")
+              echo "--------------------------------------------------"
+              echo "正在构建并安装软件包: $pkg_name ($pkg_normalized_path)"
+              echo "--------------------------------------------------"
+              
+              # 编译
+              (cd "$pkg_normalized_path" && dpkg-buildpackage -us -uc -b -d) || { echo "构建 $pkg_name 失败"; continue; }
+              
+              # 立即安装生成的 deb，以便后续包能够找到依赖
+              find "$pkg_normalized_path/.." -maxdepth 1 -name "*.deb" -type f -exec dpkg -i {} + || apt-get install -f -y
+            fi
+          done
               echo "--------------------------------------------------"
               echo "正在构建并安装软件包: $pkg_name ($pkg_path)"
               echo "--------------------------------------------------"
@@ -132,12 +146,6 @@ jobs:
 
       - name: Collect all DEB files
         run: |
-          find . -name "*.deb" -type f -exec cp {} artifacts/ \;
-
-      - name: Collect DEB files
-        run: |
-          # 收集所有生成的 .deb 文件到单一目录
-          # dpkg-buildpackage 生成的文件通常在该目录的父目录
           find . -name "*.deb" -type f -exec cp {} artifacts/ \;
 
       - name: Upload Artifacts
