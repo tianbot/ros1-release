@@ -47,7 +47,28 @@ jobs:
             sudo \
             curl \
             gnupg2 \
-            lsb-release
+            lsb-release \
+            nasm \
+            python3-gnupg \
+            python3-pycryptodome \
+            bridge-utils \
+            libassuan-dev \
+            libcaca-dev \
+            libfltk1.3-dev \
+            libfreeimage-dev \
+            libgpg-error-dev \
+            libgpgme-dev \
+            libgpgmepp-dev \
+            libogre-1.9-dev \
+            libpoco-dev \
+            libsdl1.2-dev \
+            libsdl2-dev \
+            libsdl-image1.2-dev \
+            libslang2-dev \
+            liburdfdom-dev \
+            liburdfdom-headers-dev \
+            libv4l-dev \
+            libzzip-dev
           
           # 针对 Ubuntu 22.04/24.04 的 ROS 1 兼容性处理
           # 官方 ROS 1 不支持这些版本，因此不添加官方 apt 仓库（避免 404）
