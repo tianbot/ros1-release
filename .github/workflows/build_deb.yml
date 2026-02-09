@@ -36,6 +36,8 @@ jobs:
           apt-get install -y \
             python3-pip \
             python3-setuptools \
+            python3-catkin-pkg \
+            python3-catkin-tools \
             python3-wheel \
             fakeroot \
             dpkg-dev \
@@ -86,13 +88,13 @@ jobs:
           mkdir -p artifacts
           
           # 集中安装所有系统依赖
-          # 排除 rosdep, rosdistro, rospkg 目录，这些目录包含工具测试数据，会导致解析失败
+          # 排除工具目录和测试目录，避免解析无效的 package.xml
           echo "正在安装系统依赖..."
-          rosdep install --from-paths . --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} --rosdistro noetic --exclude rosdep rosdistro rospkg || echo "部分依赖可能无法解析，继续构建..."
+          rosdep install --from-paths . --ignore-src -r -y --os=ubuntu:${{ matrix.os_version }} --rosdistro noetic --exclude rosdep rosdistro rospkg test tests || echo "部分依赖可能无法解析，继续构建..."
 
           # 遍历所有含有 debian 目录的包
-          # 同样排除非 ROS 报的工具目录
-          find . -maxdepth 3 -name "debian" -type d | grep -vE "./(rosdep|rosdistro|rospkg)/" | while read -r debian_path; do
+          # 排除隐藏目录、工具目录及测试目录
+          find . -maxdepth 4 -name "debian" -type d | grep -vE "/(\.|rosdep|rosdistro|rospkg|test|tests)/" | while read -r debian_path; do
             pkg_dir=$(dirname "$debian_path")
             echo "--------------------------------------------------"
             echo "正在构建软件包: $pkg_dir"
