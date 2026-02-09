@@ -6,7 +6,47 @@ on:
   workflow_dispatch:
 
 jobs:
+  prepare-base:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os_image: "ubuntu:22.04"
+            os_version: "jammy"
+          - os_image: "ubuntu:24.04"
+            os_version: "noble"
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Base Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.base
+          build-args: |
+            BASE_IMAGE=${{ matrix.os_image }}
+            OS_VERSION=${{ matrix.os_version }}
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/ros1-base-${{ matrix.os_version }}:latest
+          cache-from: type=gha,scope=base-${{ matrix.os_version }}
+          cache-to: type=gha,mode=max,scope=base-${{ matrix.os_version }}
+
   build:
+    needs: prepare-base
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -17,7 +57,8 @@ jobs:
             os_version: "noble"
     
     container:
-      image: ${{ matrix.os_image }}
+      image: ghcr.io/${{ github.repository_owner }}/ros1-base-${{ matrix.os_version }}:latest
+      options: --user root
     
     env:
       ROSDISTRO_INDEX_URL: https://github.com/tianbot/rosdistro/raw/master/index-v4.yaml
@@ -29,71 +70,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
+      - name: Update rosdep
         run: |
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get update
-          apt-get install -y \
-            python3-pip \
-            python3-setuptools \
-            python3-catkin-pkg \
-            python3-wheel \
-            fakeroot \
-            dpkg-dev \
-            debhelper \
-            build-essential \
-            cmake \
-            git \
-            sudo \
-            curl \
-            gnupg2 \
-            lsb-release \
-            nasm \
-            python3-gnupg \
-            python3-pycryptodome \
-            bridge-utils \
-            libassuan-dev \
-            libcaca-dev \
-            libfltk1.3-dev \
-            libfreeimage-dev \
-            libgpg-error-dev \
-            libgpgme-dev \
-            libgpgmepp-dev \
-            libogre-1.9-dev \
-            libpoco-dev \
-            libsdl1.2-dev \
-            libsdl2-dev \
-            libsdl-image1.2-dev \
-            libslang2-dev \
-            liburdfdom-dev \
-            liburdfdom-headers-dev \
-            libv4l-dev \
-            libzzip-dev
-          
-          # 针对 Ubuntu 22.04/24.04 的 ROS 1 兼容性处理
-          # 官方 ROS 1 不支持这些版本，因此不添加官方 apt 仓库（避免 404）
-          # 我们依靠本仓库源码构建所有 ROS 组件，rosdep 仅用于安装 Ubuntu 原生系统依赖
-          
-          # 设置 Git 身份，某些 bloom 操作需要
-          git config --global user.email "copilot@example.com"
-          git config --global user.name "Github Copilot"
-          
-          # 使用 pip 安装 ROS 工具以确保在不同版本的 Ubuntu 上都能运行
-          # 在 Ubuntu 24.04+ 中由于 PEP 668 需要 --break-system-packages
-          pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools --break-system-packages || \
-          pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools
-          
-          # 手动模拟 rosdep init 使用 tianbot 源
-          mkdir -p /etc/ros/rosdep/sources.list.d/
-          curl -sSL https://github.com/tianbot/rosdistro/raw/master/rosdep/sources.list.d/20-default.list -o /etc/ros/rosdep/sources.list.d/20-default.list
-          
-          # 验证文件是否成功下载且不为空
-          if [ ! -s /etc/ros/rosdep/sources.list.d/20-default.list ]; then
-            echo "错误: 无法下载 rosdep 列表文件"
-            exit 1
-          fi
-          
-          # 执行 rosdep update
+          # 镜像中虽已配置，但更新 index 确保最新
           rosdep update
 
       - name: Generate Debian metadata

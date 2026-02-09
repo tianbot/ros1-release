@@ -1,0 +1,58 @@
+ARG BASE_IMAGE=ubuntu:22.04
+FROM ${BASE_IMAGE}
+
+ARG OS_VERSION=jammy
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-setuptools \
+    python3-catkin-pkg \
+    python3-wheel \
+    fakeroot \
+    dpkg-dev \
+    debhelper \
+    build-essential \
+    cmake \
+    git \
+    sudo \
+    curl \
+    gnupg2 \
+    lsb-release \
+    nasm \
+    python3-gnupg \
+    python3-pycryptodome \
+    bridge-utils \
+    libassuan-dev \
+    libcaca-dev \
+    libfltk1.3-dev \
+    libfreeimage-dev \
+    libgpg-error-dev \
+    libgpgme-dev \
+    libgpgmepp-dev \
+    libpoco-dev \
+    libsdl1.2-dev \
+    libsdl2-dev \
+    libsdl-image1.2-dev \
+    libslang2-dev \
+    liburdfdom-dev \
+    liburdfdom-headers-dev \
+    libv4l-dev \
+    libzzip-dev && \
+    if [ "$OS_VERSION" = "noble" ]; then \
+        apt-get install -y libogre-1.12-dev; \
+    else \
+        apt-get install -y libogre-1.9-dev; \
+    fi && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN git config --global user.email "copilot@example.com" && \
+    git config --global user.name "Github Copilot"
+
+RUN pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools --break-system-packages || \
+    pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools
+
+RUN mkdir -p /etc/ros/rosdep/sources.list.d/ && \
+    curl -sSL https://github.com/tianbot/rosdistro/raw/master/rosdep/sources.list.d/20-default.list -o /etc/ros/rosdep/sources.list.d/20-default.list
+
+RUN rosdep update
