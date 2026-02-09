@@ -18,6 +18,9 @@ jobs:
     
     container:
       image: ${{ matrix.os_image }}
+    
+    env:
+      ROSDISTRO_INDEX_URL: https://github.com/tianbot/rosdistro/raw/master/index-v4.yaml
 
     steps:
       - name: Checkout code
@@ -36,7 +39,8 @@ jobs:
             debhelper \
             build-essential \
             git \
-            sudo
+            sudo \
+            curl
           
           # 设置 Git 身份，某些 bloom 操作需要
           git config --global user.email "copilot@example.com"
@@ -47,10 +51,11 @@ jobs:
           pip3 install --upgrade bloom rosdep rosinstall-generator vcstool --break-system-packages || \
           pip3 install --upgrade bloom rosdep rosinstall-generator vcstool
           
-          # 修复 rosdep init 在容器中可能遇到的权限问题
-          if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then
-            rosdep init
-          fi
+          # 手动模拟 rosdep init 使用 tianbot 源
+          mkdir -p /etc/ros/rosdep/sources.list.d/
+          curl -o /etc/ros/rosdep/sources.list.d/20-default.list https://github.com/tianbot/rosdistro/raw/master/rosdep/sources.list.d/20-default.list
+          
+          # 执行 rosdep update
           rosdep update
 
       - name: Generate Debian metadata
