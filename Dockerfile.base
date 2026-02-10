@@ -30,10 +30,8 @@ RUN apt-get update && apt-get install -y software-properties-common && \
     libassuan-dev \
     libcaca-dev \
     libfltk1.3-dev \
-    libfreeimage-dev \
     libgpg-error-dev \
     libgpgme-dev \
-    libgpgmepp-dev \
     libpoco-dev \
     libsdl2-dev \
     libslang2-dev \
@@ -64,9 +62,9 @@ RUN apt-get update && apt-get install -y software-properties-common && \
     libqt5x11extras5-dev \
     libqt5opengl5-dev && \
     if [ "$OS_VERSION" = "noble" ]; then \
-        apt-get install -y libogre-1.14-dev; \
+        apt-get install -y libogre-1.12-dev; \
     else \
-        apt-get install -y libogre-1.9-dev libsdl1.2-dev libsdl-image1.2-dev; \
+        apt-get install -y libogre-1.9-dev libsdl1.2-dev libsdl-image1.2-dev libfreeimage-dev libgpgmepp-dev; \
     fi && \
     rm -rf /var/lib/apt/lists/*
 
