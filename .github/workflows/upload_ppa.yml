@@ -1,0 +1,85 @@
+name: Upload Source to PPA
+
+on:
+  push:
+    branches:
+      - release
+  workflow_dispatch:
+    inputs:
+      ppa_name:
+        description: 'Target PPA (e.g., ppa:user/repo)'
+        required: true
+        default: 'ppa:tianbot/ros-noetic'
+
+jobs:
+  prepare-source:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os_image: "ubuntu:22.04"
+            os_version: "jammy"
+          - os_image: "ubuntu:24.04"
+            os_version: "noble"
+    
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/ros1-base-${{ matrix.os_version }}:latest
+      options: --user root
+
+    env:
+      PPA_NAME: ${{ github.event.inputs.ppa_name || 'ppa:tianbot/ros-noetic' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Import GPG Key
+        run: |
+          # 导入私钥供签名使用
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          # 提取 Key ID（用于 debuild 自动签名）
+          KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | awk '{print $2}' | cut -d'/' -f2)
+          echo "GPG_KEY_ID=$KEY_ID" >> $GITHUB_ENV
+
+      - name: Install PPA tools
+        run: |
+          apt-get update && apt-get install -y dput devscripts build-essential
+
+      - name: Generate and Upload Source Packages
+        run: |
+          # 更新 rosdep 
+          rosdep update
+          
+          # 生成 Debian 元数据 (SourceOnly)
+          chmod +x generate.sh
+          ./generate.sh ${{ matrix.os_version }} noetic
+          
+          # 获取拓扑排序（复用之前的 Python 逻辑）
+          ORDERED_PATHS=$(python3 -c "
+          import os
+          from catkin_pkg.packages import find_packages
+          from catkin_pkg.topological_order import topological_order_packages
+          pkgs = find_packages('.', exclude_paths=['rosdep', 'rosdistro', 'rospkg', 'test', 'tests'])
+          ordered = topological_order_packages(pkgs)
+          for path, pkg in ordered:
+              if path != '.': print(path)
+          ")
+          
+          echo "$ORDERED_PATHS" | while read -r pkg_path; do
+            if [ -z "$pkg_path" ] || [ ! -d "$pkg_path/debian" ]; then continue; fi
+            
+            echo "--------------------------------------------------"
+            echo "Signing and Uploading Source: $pkg_path"
+            echo "--------------------------------------------------"
+            
+            # 进入包目录构建源码包 (-S 为源码包，-sa 包含原始源码，-k 指定密钥 ID)
+            (cd "$pkg_path" && debuild -S -sa -p"gpg --batch --passphrase ${{ secrets.GPG_PASSPHRASE }} --pinentry-mode loopback" -k$GPG_KEY_ID -us -uc)
+            
+            # 使用 dput 上传同级的 .changes 文件到指定 PPA
+            # 注意：bloom 生成的源码包父目录会有 .changes 文件
+            PARENT_DIR=$(dirname "$pkg_path")
+            find "$PARENT_DIR" -maxdepth 1 -name "*.changes" -exec dput $PPA_NAME {} \;
+            
+            # 清理，防止干扰下一个包
+            rm -f "$PARENT_DIR"/*.changes "$PARENT_DIR"/*.dsc "$PARENT_DIR"/*.buildinfo "$PARENT_DIR"/*.tar.*
+          done

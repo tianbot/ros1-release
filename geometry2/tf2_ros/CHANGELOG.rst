@@ -2,6 +2,19 @@
 Changelog for package tf2_ros
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.7.10 (2025-05-02)
+-------------------
+* Fix race conditions in MessageFilter (`#539 <https://github.com/ros/geometry2/issues/539>`_)
+* Contributors: Robert Haschke
+
+0.7.9 (2025-04-25)
+------------------
+
+0.7.8 (2025-04-10)
+------------------
+* Fix typos in error messages of buffer_interface.py (`#489 <https://github.com/ros/geometry2/issues/489>`_)
+* Contributors: Michael Grupp
+
 0.7.7 (2023-10-13)
 ------------------
 

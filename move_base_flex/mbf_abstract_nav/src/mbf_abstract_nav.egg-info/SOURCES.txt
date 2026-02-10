@@ -1,0 +1,7 @@
+README.md
+setup.py
+src/mbf_abstract_nav/__init__.py
+src/mbf_abstract_nav.egg-info/PKG-INFO
+src/mbf_abstract_nav.egg-info/SOURCES.txt
+src/mbf_abstract_nav.egg-info/dependency_links.txt
+src/mbf_abstract_nav.egg-info/top_level.txt

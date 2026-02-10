@@ -2,6 +2,19 @@
 Changelog for package tf2_py
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.7.10 (2025-05-02)
+-------------------
+
+0.7.9 (2025-04-25)
+------------------
+* Fix Python Linking on OSX (`#502 <https://github.com/ros/geometry2/issues/502>`_)
+* Contributors: Michael Görner, Tobias Fischer
+
+0.7.8 (2025-04-10)
+------------------
+* Replace deprecated PyEval_CallObject in tf2_py (`#575 <https://github.com/ros/geometry2/issues/575>`_)
+* Contributors: Ken
+
 0.7.7 (2023-10-13)
 ------------------
 * Fix(tf2_py) potential memory leak (`#544 <https://github.com/ros/geometry2/issues/544>`_)
