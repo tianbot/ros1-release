@@ -79,4 +79,18 @@ else
 fi
 
 mkdir -p /etc/ros/rosdep/sources.list.d/
-curl -sSL https://github.com/tianbot/rosdistro/raw/master/rosdep/sources.list.d/20-default.list -o /etc/ros/rosdep/sources.list.d/20-default.list
+
+# 尝试从 tianbot 镜像下载，增加重试和错误检测
+echo "Setting up rosdep sources..."
+if ! curl -sSL --retry 5 --retry-delay 5 --retry-connrefused --fail "https://github.com/tianbot/rosdistro/raw/master/rosdep/sources.list.d/20-default.list" -o /etc/ros/rosdep/sources.list.d/20-default.list; then
+    echo "⚠️ Failed to download from tianbot, falling back to official rosdep init..."
+    rm -f /etc/ros/rosdep/sources.list.d/20-default.list
+    rosdep init
+fi
+
+# 再次检查文件内容是否合规（防止某些代理返回 200 OK 的 HTML 错误页）
+if grep -q "<html" /etc/ros/rosdep/sources.list.d/20-default.list; then
+    echo "⚠️ Detected HTML content in sources list (likely an error page). Falling back to official rosdep init..."
+    rm -f /etc/ros/rosdep/sources.list.d/20-default.list
+    rosdep init
+fi
