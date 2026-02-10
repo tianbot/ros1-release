@@ -4,12 +4,6 @@ on:
   push:
     branches:
       - release
-  workflow_dispatch:
-    inputs:
-      ppa_name:
-        description: 'Target PPA (e.g., ppa:user/repo)'
-        required: true
-        default: 'ppa:tianbot/ros-noetic'
 
 jobs:
   prepare-source:
