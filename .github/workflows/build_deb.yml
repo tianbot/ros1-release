@@ -136,6 +136,19 @@ jobs:
             if [ -d "$pkg_path/debian" ]; then
               pkg_name=$(basename "$pkg_path")
               printf "正在构建 %-30s ... " "$pkg_name"
+              PARENT_DIR=$(dirname "$pkg_path")
+              BEFORE_DEB_LIST=$(find "$PARENT_DIR" -maxdepth 1 -name "*.deb" -type f -printf "%f\n" | sort)
+              EXPECTED_VERSION=$(cd "$pkg_path" && dpkg-parsechangelog -S Version 2>/dev/null)
+              EXPECTED_ARCH=$(dpkg-architecture -qDEB_BUILD_ARCH 2>/dev/null)
+              EXPECTED_PKGS=$(awk '/^Package: /{print $2}' "$pkg_path/debian/control" 2>/dev/null)
+              EXPECTED_DEBS=""
+              if [ -n "$EXPECTED_VERSION" ] && [ -n "$EXPECTED_ARCH" ] && [ -n "$EXPECTED_PKGS" ]; then
+                while read -r p; do
+                  if [ -n "$p" ]; then
+                    EXPECTED_DEBS="$EXPECTED_DEBS $p"_"$EXPECTED_VERSION"_"$EXPECTED_ARCH".deb
+                  fi
+                done <<< "$EXPECTED_PKGS"
+              fi
               
               # 构建并捕获日志
               if (cd "$pkg_path" && dpkg-buildpackage -us -uc -b -d -jauto > build.log 2>&1); then
@@ -144,9 +157,21 @@ jobs:
                 cat "$pkg_path/build.log"
                 echo "::endgroup::"
                 
-                # 安装生成的 deb
-                PARENT_DIR=$(dirname "$pkg_path")
-                find "$PARENT_DIR" -maxdepth 1 -name "*.deb" -type f -exec dpkg -i {} + || apt-get install -f -y
+                AFTER_DEB_LIST=$(find "$PARENT_DIR" -maxdepth 1 -name "*.deb" -type f -printf "%f\n" | sort)
+                NEW_DEBS=$(comm -13 <(echo "$BEFORE_DEB_LIST") <(echo "$AFTER_DEB_LIST"))
+                if [ -z "$NEW_DEBS" ]; then
+                  if [ -n "$EXPECTED_DEBS" ]; then
+                    echo "::warning title=Deb Not Generated::构建 $pkg_name 完成但未发现新增 deb。期望: $EXPECTED_DEBS"
+                  else
+                    echo "::warning title=Deb Not Generated::构建 $pkg_name 完成但未发现新增 deb。"
+                  fi
+                else
+                  echo "$NEW_DEBS" | while read -r deb_name; do
+                    if [ -n "$deb_name" ]; then
+                      cp "$PARENT_DIR/$deb_name" artifacts/
+                    fi
+                  done
+                fi
               else
                 echo "❌ 失败"
                 echo "--------------------------------------------------"
@@ -157,6 +182,15 @@ jobs:
               fi
             fi
           done
+          
+          if compgen -G "artifacts/*.deb" > /dev/null; then
+            echo "开始安装收集到的 deb 包..."
+            if ! apt-get install -y ./artifacts/*.deb; then
+              echo "::warning title=Install Failed::统一安装 deb 失败，请检查依赖关系。"
+            fi
+          else
+            echo "::warning title=No Debs Collected::未收集到任何 deb 包，跳过安装。"
+          fi
 
       - name: Collect all DEB files
         run: |
