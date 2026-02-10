@@ -20,6 +20,20 @@ python3-rospkg:
   ubuntu: [python3-pip]
 python3-catkin-pkg:
   ubuntu: [python3-pip]
+eigen:
+  ubuntu: [libeigen3-dev]
+libqt5-svg-dev:
+  ubuntu: [libqt5svg5-dev]
+libqt5-websockets-dev:
+  ubuntu: [libqt5websockets5-dev]
+libqt5-opengl-dev:
+  ubuntu: [libqt5opengl5-dev]
+lua-dev:
+  ubuntu: [liblua5.2-dev]
+fmt:
+  ubuntu: [libfmt-dev]
+nlohmann-json-dev:
+  ubuntu: [nlohmann-json3-dev]
 EOF
 
 # 遍历所有 package.xml 生成映射： pkg_name -> ros-noetic-pkg-name

@@ -43,7 +43,6 @@ RUN apt-get update && apt-get install -y software-properties-common && \
     liburdfdom-headers-dev \
     libv4l-dev \
     libzzip-dev \
-    python3-wstool \
     ninja-build \
     libgflags-dev \
     libgoogle-glog-dev \
@@ -57,15 +56,17 @@ RUN apt-get update && apt-get install -y software-properties-common && \
     stow \
     libceres-dev \
     libabsl-dev \
+    libfmt-dev \
+    nlohmann-json3-dev \
+    libzmq3-dev \
+    liblz4-dev \
+    libzstd-dev \
     libqt5svg5-dev \
     libqt5websockets5-dev \
-    libqt5websockets5 \
     libqt5x11extras5-dev \
-    libqtav-dev \
-    libqtav1 \
-    libqtavwidgets1 && \
+    libqt5opengl5-dev && \
     if [ "$OS_VERSION" = "noble" ]; then \
-        apt-get install -y libogre-1.12-dev; \
+        apt-get install -y libogre-1.14-dev; \
     else \
         apt-get install -y libogre-1.9-dev; \
     fi && \
@@ -74,8 +75,8 @@ RUN apt-get update && apt-get install -y software-properties-common && \
 RUN git config --global user.email "copilot@example.com" && \
     git config --global user.name "Github Copilot"
 
-RUN pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools --break-system-packages || \
-    pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools
+RUN pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools wstool --break-system-packages || \
+    pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools wstool
 
 RUN mkdir -p /etc/ros/rosdep/sources.list.d/ && \
     curl -sSL https://github.com/tianbot/rosdistro/raw/master/rosdep/sources.list.d/20-default.list -o /etc/ros/rosdep/sources.list.d/20-default.list
