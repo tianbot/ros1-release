@@ -71,8 +71,11 @@ RUN apt-get update && apt-get install -y software-properties-common && \
 RUN git config --global user.email "copilot@example.com" && \
     git config --global user.name "Github Copilot"
 
-RUN pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools wstool --break-system-packages || \
-    pip3 install --upgrade bloom rosdep rosinstall-generator vcstool catkin-tools wstool
+RUN if [ "$OS_VERSION" = "noble" ]; then \
+        pip3 install --no-cache-dir bloom rosdep rosinstall-generator vcstool --break-system-packages; \
+    else \
+        pip3 install --no-cache-dir bloom rosdep rosinstall-generator vcstool catkin-tools wstool; \
+    fi
 
 RUN mkdir -p /etc/ros/rosdep/sources.list.d/ && \
     curl -sSL https://github.com/tianbot/rosdistro/raw/master/rosdep/sources.list.d/20-default.list -o /etc/ros/rosdep/sources.list.d/20-default.list
