@@ -73,6 +73,7 @@ jobs:
       - name: Build and Install Source Packages
         shell: bash
         run: |
+          sudo apt-get update
           mkdir -p artifacts
           export DEB_BUILD_OPTIONS="parallel=$(nproc) nocheck"
           
@@ -143,8 +144,8 @@ jobs:
                 # 收集生成的 DEB
                 find "$(dirname "$pkg_path")" -maxdepth 1 -name "*.deb" -type f -exec cp {} artifacts/ \;
                 
-                # 立即安装生成的 DEB 以满足后续依赖
-                apt-get install -y ./artifacts/*.deb > /dev/null 2>&1 || echo "⚠️ 安装警告: $pkg_name"
+                # 立即安装生成的 DEB 以满足后续依赖 (显示详细错误)
+                sudo apt-get install -y ./artifacts/*.deb || { echo "❌ 安装依赖失败"; exit 1; }
               else
                 echo "❌"
                 echo "::error::构建失败：$pkg_name"

@@ -36,6 +36,11 @@ apt-get install -y \
   libgpg-error-dev \
   libgpgme-dev \
   libpoco-dev \
+  libconsole-bridge-dev \
+  libboost-all-dev \
+  uuid-dev \
+  libtinyxml-dev \
+  libtinyxml2-dev \
   libsdl2-dev \
   libslang2-dev \
   liburdfdom-dev \
