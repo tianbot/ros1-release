@@ -61,6 +61,8 @@ find . -maxdepth 4 \( -name ".*" -o -path "./rosdep" -o -path "./rosdistro" -o -
     dir=$(dirname "$package_xml")
     pkg_name=$(grep -oPm1 "(?<=<name>)[^<]+" "$package_xml")
     printf "正在为 %-30s 生成元数据 ... " "$pkg_name"
+  # Remove stale debian/ from previous OS builds so bloom regenerates with current OS_VERSION.
+  rm -rf "$dir/debian"
     
     if (cd "$dir" && bloom-generate rosdebian --os-name ubuntu --os-version "$OS_VERSION" --ros-distro "$ROS_DISTRO" > bloom.log 2>&1); then
         echo "✅ 成功"
