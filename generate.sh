@@ -59,6 +59,20 @@ rosdep update
 # 遍历目录执行 bloom-generate
 find . -maxdepth 4 \( -name ".*" -o -path "./rosdep" -o -path "./rosdistro" -o -path "./rospkg" -o -name "test" -o -name "tests" \) -prune -o -type f -name 'package.xml' -print | while read -r package_xml; do
     dir=$(dirname "$package_xml")
-    echo "在目录 $dir 中发现了 package.xml，执行 bloom-generate..."
-    (cd "$dir" && bloom-generate rosdebian --os-name ubuntu --os-version "$OS_VERSION" --ros-distro "$ROS_DISTRO") || echo "警告: $dir 上的 bloom-generate 失败"
+    pkg_name=$(grep -oPm1 "(?<=<name>)[^<]+" "$package_xml")
+    printf "正在为 %-30s 生成元数据 ... " "$pkg_name"
+    
+    if (cd "$dir" && bloom-generate rosdebian --os-name ubuntu --os-version "$OS_VERSION" --ros-distro "$ROS_DISTRO" > bloom.log 2>&1); then
+        echo "✅ 成功"
+        echo "::group::查看生成日志: $pkg_name"
+        cat "$dir/bloom.log"
+        echo "::endgroup::"
+    else
+        echo "❌ 失败"
+        echo "--------------------------------------------------"
+        echo "生成元数据失败日志: $pkg_name"
+        cat "$dir/bloom.log"
+        echo "--------------------------------------------------"
+        echo "::warning title=Bloom Generate Failed::目录 $dir 上的 bloom-generate 失败，跳过该包。"
+    fi
 done

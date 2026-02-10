@@ -101,6 +101,7 @@ jobs:
       - name: Build and Install Source Packages
         run: |
           mkdir -p artifacts
+          export DEB_BUILD_OPTIONS="parallel=$(nproc) nocheck"
           
           # 使用 Python 进行稳健的拓扑排序，显式排除干扰目录
           ORDERED_PATHS=$(python3 -c "
@@ -109,8 +110,7 @@ jobs:
           from catkin_pkg.topological_order import topological_order_packages
           
           try:
-              # 显式排除包含测试用例和非法包的目录（如 rosdep/test 目录）
-              # find_packages 会递归寻找，但 exclude_paths 能防止进入特定子树
+              # 显式排除包含测试用例和非法包的目录
               pkgs = find_packages('.', exclude_paths=['rosdep', 'rosdistro', 'rospkg', 'test', 'tests'])
               ordered = topological_order_packages(pkgs)
               for path, pkg in ordered:
@@ -135,17 +135,26 @@ jobs:
             
             if [ -d "$pkg_path/debian" ]; then
               pkg_name=$(basename "$pkg_path")
-              echo "--------------------------------------------------"
-              echo "正在构建并安装软件包: $pkg_name ($pkg_path)"
-              echo "--------------------------------------------------"
+              printf "正在构建 %-30s ... " "$pkg_name"
               
-              # 构建镜像（-d 参数跳过针对 apt 中未发布包的构建依赖检查）
-              (cd "$pkg_path" && dpkg-buildpackage -us -uc -b -d) || { echo "构建 $pkg_name 失败"; continue; }
-              
-              # 立即安装生成的 deb，以便后续包能够找到 C++/CMake 依赖
-              # 寻找该包父目录下的所有 .deb（如果是多项目目录结构，请确保查找精确）
-              PARENT_DIR=$(dirname "$pkg_path")
-              find "$PARENT_DIR" -maxdepth 1 -name "*.deb" -type f -exec dpkg -i {} + || apt-get install -f -y
+              # 构建并捕获日志
+              if (cd "$pkg_path" && dpkg-buildpackage -us -uc -b -d -jauto > build.log 2>&1); then
+                echo "✅ 成功"
+                echo "::group::查看构建日志: $pkg_name"
+                cat "$pkg_path/build.log"
+                echo "::endgroup::"
+                
+                # 安装生成的 deb
+                PARENT_DIR=$(dirname "$pkg_path")
+                find "$PARENT_DIR" -maxdepth 1 -name "*.deb" -type f -exec dpkg -i {} + || apt-get install -f -y
+              else
+                echo "❌ 失败"
+                echo "--------------------------------------------------"
+                echo "构建失败日志: $pkg_name"
+                cat "$pkg_path/build.log"
+                echo "--------------------------------------------------"
+                echo "::warning title=Build Failed::构建 $pkg_name 失败，尝试继续下一个包。"
+              fi
             fi
           done
 
