@@ -35,9 +35,7 @@ RUN apt-get update && apt-get install -y software-properties-common && \
     libgpgme-dev \
     libgpgmepp-dev \
     libpoco-dev \
-    libsdl1.2-dev \
     libsdl2-dev \
-    libsdl-image1.2-dev \
     libslang2-dev \
     liburdfdom-dev \
     liburdfdom-headers-dev \
@@ -68,7 +66,7 @@ RUN apt-get update && apt-get install -y software-properties-common && \
     if [ "$OS_VERSION" = "noble" ]; then \
         apt-get install -y libogre-1.14-dev; \
     else \
-        apt-get install -y libogre-1.9-dev; \
+        apt-get install -y libogre-1.9-dev libsdl1.2-dev libsdl-image1.2-dev; \
     fi && \
     rm -rf /var/lib/apt/lists/*
 
