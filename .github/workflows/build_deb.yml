@@ -99,6 +99,7 @@ jobs:
             || echo "部分系统依赖可能无法安装，尝试继续..."
 
       - name: Build and Install Source Packages
+        shell: bash
         run: |
           mkdir -p artifacts
           export DEB_BUILD_OPTIONS="parallel=$(nproc) nocheck"
@@ -153,7 +154,7 @@ jobs:
               # 构建并捕获日志
               if (cd "$pkg_path" && dpkg-buildpackage -us -uc -b -d -jauto > build.log 2>&1); then
                 echo "✅ 成功"
-                echo "::group::查看构建日志: $pkg_name"
+                echo "::group::查看构建日志：$pkg_name"
                 cat "$pkg_path/build.log"
                 echo "::endgroup::"
                 
@@ -161,7 +162,7 @@ jobs:
                 NEW_DEBS=$(comm -13 <(echo "$BEFORE_DEB_LIST") <(echo "$AFTER_DEB_LIST"))
                 if [ -z "$NEW_DEBS" ]; then
                   if [ -n "$EXPECTED_DEBS" ]; then
-                    echo "::warning title=Deb Not Generated::构建 $pkg_name 完成但未发现新增 deb。期望: $EXPECTED_DEBS"
+                    echo "::warning title=Deb Not Generated::构建 $pkg_name 完成但未发现新增 deb。期望：$EXPECTED_DEBS"
                   else
                     echo "::warning title=Deb Not Generated::构建 $pkg_name 完成但未发现新增 deb。"
                   fi
