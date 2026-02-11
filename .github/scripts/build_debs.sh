@@ -6,7 +6,7 @@ ROS_DISTRO="${2:-noetic}"
 
 export ROSDISTRO_INDEX_URL="${ROSDISTRO_INDEX_URL:-https://github.com/tianbot/rosdistro/raw/master/index-v4.yaml}"
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
-export DEB_BUILD_OPTIONS="parallel=$(nproc) nocheck"
+export ROS_DISTRO="$ROS_DISTRO"
 
 mkdir -p artifacts
 export DEB_BUILD_OPTIONS="parallel=$(nproc) nocheck"
@@ -128,16 +128,16 @@ echo "$ORDERED_PATHS" | while read -r pkg_path; do
   if ! is_bootstrap "$pkg_path"; then continue; fi
   if [ -d "$pkg_path/debian" ]; then
     build_one "$pkg_path" "[bootstrap]"
-echo "基础包构建完成，已暂时屏蔽安装步骤。"
-else
-  echo "::warning title=No Debs Collected::未收集到任何 bootstrap deb 包，跳过安装。"
-fi
+  fi
+done
 
-if [ -f /opt/ros/noetic/setup.bash ]; then
+echo "基础包构建完成，已暂时屏蔽安装步骤。"
+
+if [ -f "/opt/ros/$ROS_DISTRO/setup.bash" ]; then
   # shellcheck disable=SC1091
-  source /opt/ros/noetic/setup.bash
+  source "/opt/ros/$ROS_DISTRO/setup.bash"
 else
-  echo "::warning title=Setup Not Found::/opt/ros/noetic/setup.bash 不存在，环境未刷新。"
+  echo "::warning title=Setup Not Found::/opt/ros/$ROS_DISTRO/setup.bash 不存在，环境未刷新。"
 fi
 
 echo "$ORDERED_PATHS" | while read -r pkg_path; do
@@ -146,22 +146,9 @@ echo "$ORDERED_PATHS" | while read -r pkg_path; do
   if is_bootstrap "$pkg_path"; then continue; fi
   if [ -d "$pkg_path/debian" ]; then
     build_one "$pkg_path" ""
-echo "所有包构建完成，已暂时屏蔽 deb 安装步骤。"
-    if dpkg -i "${all_debs[@]}"; then
-      echo "部分本地 deb 已通过 dpkg 安装（或标记为半安装状态）。尝试修复依赖..."
-    else
-      echo "dpkg 安装本地 deb 过程中出现错误，继续尝试修复依赖..."
-    fi
-    if apt-get install -f -y; then
-      echo "依赖修复完成。"
-    else
-      echo "::warning title=Fix Failed::自动修复依赖失败。建议：检查缺失包并添加相应 apt 源或构建缺失包。"
-      echo "尝试显示模拟修复（apt-get -s install -f）以帮助诊断："
-      apt-get -s install -f | sed -n '1,200p'
-    fi
   fi
-else
-  echo "::warning title=No Debs Collected::未收集到任何 deb 包，跳过安装。"
-fi
+done
+
+echo "所有包构建完成，已暂时屏蔽 deb 安装步骤。"
 
 find . -name "*.deb" -type f -not -path "./artifacts/*" -exec cp {} artifacts/ \;
