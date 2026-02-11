@@ -131,24 +131,17 @@ echo "$ORDERED_PATHS" | while read -r pkg_path; do
   if ! is_bootstrap "$pkg_path"; then continue; fi
   if [ -d "$pkg_path/debian" ]; then
     build_one "$pkg_path" "[bootstrap]"
-    if [ -n "${BUILD_ONE_NEW_DEBS:-}" ]; then
-      deb_args=()
-      while read -r deb_name; do
-        if [ -n "$deb_name" ]; then
-          deb_args+=("./artifacts/$deb_name")
-        fi
-      done <<< "$BUILD_ONE_NEW_DEBS"
-      if [ ${#deb_args[@]} -gt 0 ]; then
-        for deb_file in "${deb_args[@]}"; do
-          if ! apt-get install -y "$deb_file"; then
-            echo "::warning title=Install Failed::安装基础包 $deb_file 失败，稍后加入统一重试。"
-            FAILED_DEBS+=("$deb_file")
-          fi
-        done
-      fi
-    fi
   fi
 done
+
+if compgen -G "artifacts/*.deb" > /dev/null; then
+  echo "基础包构建完成，开始统一安装 bootstrap deb 包..."
+  if ! apt-get install -y ./artifacts/*.deb; then
+    echo "::warning title=Install Failed::bootstrap 统一安装失败，稍后继续构建并在最终阶段重试。"
+  fi
+else
+  echo "::warning title=No Debs Collected::未收集到任何 bootstrap deb 包，跳过安装。"
+fi
 
 if [ -f /opt/ros/noetic/setup.bash ]; then
   # shellcheck disable=SC1091
@@ -163,22 +156,6 @@ echo "$ORDERED_PATHS" | while read -r pkg_path; do
   if is_bootstrap "$pkg_path"; then continue; fi
   if [ -d "$pkg_path/debian" ]; then
     build_one "$pkg_path" ""
-    if [ -n "${BUILD_ONE_NEW_DEBS:-}" ]; then
-      deb_args=()
-      while read -r deb_name; do
-        if [ -n "$deb_name" ]; then
-          deb_args+=("./artifacts/$deb_name")
-        fi
-      done <<< "$BUILD_ONE_NEW_DEBS"
-      if [ ${#deb_args[@]} -gt 0 ]; then
-        for deb_file in "${deb_args[@]}"; do
-          if ! apt-get install -y "$deb_file"; then
-            echo "::warning title=Install Failed::安装 $deb_file 失败，稍后加入统一重试。"
-            FAILED_DEBS+=("$deb_file")
-          fi
-        done
-      fi
-    fi
   fi
 done
 
@@ -195,7 +172,20 @@ fi
 if [ ${#all_debs[@]} -gt 0 ]; then
   echo "开始安装收集到的 deb 包（包含先前失败的）..."
   if ! apt-get install -y "${all_debs[@]}"; then
-    echo "::warning title=Install Failed::统一安装 deb 失败，请检查依赖关系。失败的 deb 列表: ${FAILED_DEBS[*]:-none}"
+    echo "::warning title=Install Failed::统一安装 deb 失败，尝试回退策略：先用 dpkg 安装本地 deb，再尝试修复依赖。失败的 deb 列表: ${FAILED_DEBS[*]:-none}"
+    # 回退策略：先用 dpkg -i 安装本地 deb（可能产生未满足依赖），再用 apt-get -f install 试图从仓库拉取缺失依赖
+    if dpkg -i "${all_debs[@]}"; then
+      echo "部分本地 deb 已通过 dpkg 安装（或标记为半安装状态）。尝试修复依赖..."
+    else
+      echo "dpkg 安装本地 deb 过程中出现错误，继续尝试修复依赖..."
+    fi
+    if apt-get install -f -y; then
+      echo "依赖修复完成。"
+    else
+      echo "::warning title=Fix Failed::自动修复依赖失败。建议：检查缺失包并添加相应 apt 源或构建缺失包。"
+      echo "尝试显示模拟修复（apt-get -s install -f）以帮助诊断："
+      apt-get -s install -f | sed -n '1,200p'
+    fi
   fi
 else
   echo "::warning title=No Debs Collected::未收集到任何 deb 包，跳过安装。"
