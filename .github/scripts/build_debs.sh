@@ -94,12 +94,14 @@ build_one() {
     after_deb_list=$(find "$parent_dir" -maxdepth 1 -name "*.deb" -type f -printf "%f\n" | sort)
     new_debs=$(comm -13 <(echo "$before_deb_list") <(echo "$after_deb_list"))
     if [ -z "$new_debs" ]; then
+      BUILD_ONE_NEW_DEBS=""
       if [ -n "$expected_debs" ]; then
         echo "::warning title=Deb Not Generated::构建 $pkg_name 完成但未发现新增 deb。期望：$expected_debs"
       else
         echo "::warning title=Deb Not Generated::构建 $pkg_name 完成但未发现新增 deb。"
       fi
     else
+      BUILD_ONE_NEW_DEBS="$new_debs"
       echo "$new_debs" | while read -r deb_name; do
         if [ -n "$deb_name" ]; then
           cp "$parent_dir/$deb_name" artifacts/
@@ -108,6 +110,7 @@ build_one() {
     fi
     return 0
   else
+    BUILD_ONE_NEW_DEBS=""
     echo "❌ 失败"
     echo "--------------------------------------------------"
     echo "构建失败日志: $pkg_name"
@@ -125,9 +128,17 @@ echo "$ORDERED_PATHS" | while read -r pkg_path; do
   if ! is_bootstrap "$pkg_path"; then continue; fi
   if [ -d "$pkg_path/debian" ]; then
     build_one "$pkg_path" "[bootstrap]"
-    if compgen -G "artifacts/*.deb" > /dev/null; then
-      if ! apt-get install -y ./artifacts/*.deb; then
-        echo "::warning title=Install Failed::安装基础包 deb 失败，尝试继续后续包。"
+    if [ -n "${BUILD_ONE_NEW_DEBS:-}" ]; then
+      deb_args=()
+      while read -r deb_name; do
+        if [ -n "$deb_name" ]; then
+          deb_args+=("./artifacts/$deb_name")
+        fi
+      done <<< "$BUILD_ONE_NEW_DEBS"
+      if [ ${#deb_args[@]} -gt 0 ]; then
+        if ! apt-get install -y "${deb_args[@]}"; then
+          echo "::warning title=Install Failed::安装基础包 deb 失败，尝试继续后续包。"
+        fi
       fi
     fi
   fi
@@ -146,6 +157,19 @@ echo "$ORDERED_PATHS" | while read -r pkg_path; do
   if is_bootstrap "$pkg_path"; then continue; fi
   if [ -d "$pkg_path/debian" ]; then
     build_one "$pkg_path" ""
+    if [ -n "${BUILD_ONE_NEW_DEBS:-}" ]; then
+      deb_args=()
+      while read -r deb_name; do
+        if [ -n "$deb_name" ]; then
+          deb_args+=("./artifacts/$deb_name")
+        fi
+      done <<< "$BUILD_ONE_NEW_DEBS"
+      if [ ${#deb_args[@]} -gt 0 ]; then
+        if ! apt-get install -y "${deb_args[@]}"; then
+          echo "::warning title=Install Failed::安装 deb 失败，尝试继续后续包。"
+        fi
+      fi
+    fi
   fi
 done
 
