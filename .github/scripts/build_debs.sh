@@ -6,13 +6,10 @@ ROS_DISTRO="${2:-noetic}"
 
 export ROSDISTRO_INDEX_URL="${ROSDISTRO_INDEX_URL:-https://github.com/tianbot/rosdistro/raw/master/index-v4.yaml}"
 export DEBIAN_FRONTEND="${DEBIAN_FRONTEND:-noninteractive}"
-export ROS_DISTRO="$ROS_DISTRO"
+export DEB_BUILD_OPTIONS="parallel=$(nproc) nocheck"
 
 mkdir -p artifacts
 export DEB_BUILD_OPTIONS="parallel=$(nproc) nocheck"
-
-# 收集在逐个包安装阶段失败的 deb，最后统一尝试安装
-FAILED_DEBS=()
 
 rosdep update
 
@@ -124,21 +121,14 @@ build_one() {
   fi
 }
 
-echo "开始构建并安装基础包..."
+echo "开始构建基础包..."
 echo "$ORDERED_PATHS" | while read -r pkg_path; do
   if [ -z "$pkg_path" ]; then continue; fi
   if echo "$pkg_path" | grep -qE "/\.|/(rosdep|rosdistro|rospkg|test|tests)/"; then continue; fi
   if ! is_bootstrap "$pkg_path"; then continue; fi
   if [ -d "$pkg_path/debian" ]; then
     build_one "$pkg_path" "[bootstrap]"
-  fi
-done
-
-if compgen -G "artifacts/*.deb" > /dev/null; then
-  echo "基础包构建完成，开始统一安装 bootstrap deb 包..."
-  if ! apt-get install -y ./artifacts/*.deb; then
-    echo "::warning title=Install Failed::bootstrap 统一安装失败，稍后继续构建并在最终阶段重试。"
-  fi
+echo "基础包构建完成，已暂时屏蔽安装步骤。"
 else
   echo "::warning title=No Debs Collected::未收集到任何 bootstrap deb 包，跳过安装。"
 fi
@@ -156,24 +146,7 @@ echo "$ORDERED_PATHS" | while read -r pkg_path; do
   if is_bootstrap "$pkg_path"; then continue; fi
   if [ -d "$pkg_path/debian" ]; then
     build_one "$pkg_path" ""
-  fi
-done
-
-all_debs=()
-if compgen -G "artifacts/*.deb" > /dev/null; then
-  for f in artifacts/*.deb; do
-    all_debs+=("./$f")
-  done
-fi
-if [ ${#FAILED_DEBS[@]} -gt 0 ]; then
-  all_debs+=("${FAILED_DEBS[@]}")
-fi
-
-if [ ${#all_debs[@]} -gt 0 ]; then
-  echo "开始安装收集到的 deb 包（包含先前失败的）..."
-  if ! apt-get install -y "${all_debs[@]}"; then
-    echo "::warning title=Install Failed::统一安装 deb 失败，尝试回退策略：先用 dpkg 安装本地 deb，再尝试修复依赖。失败的 deb 列表: ${FAILED_DEBS[*]:-none}"
-    # 回退策略：先用 dpkg -i 安装本地 deb（可能产生未满足依赖），再用 apt-get -f install 试图从仓库拉取缺失依赖
+echo "所有包构建完成，已暂时屏蔽 deb 安装步骤。"
     if dpkg -i "${all_debs[@]}"; then
       echo "部分本地 deb 已通过 dpkg 安装（或标记为半安装状态）。尝试修复依赖..."
     else
