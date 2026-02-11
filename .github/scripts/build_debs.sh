@@ -11,6 +11,9 @@ export ROS_DISTRO="$ROS_DISTRO"
 mkdir -p artifacts
 export DEB_BUILD_OPTIONS="parallel=$(nproc) nocheck"
 
+# 收集在逐个包安装阶段失败的 deb，最后统一尝试安装
+FAILED_DEBS=()
+
 rosdep update
 
 chmod +x generate.sh
@@ -136,9 +139,12 @@ echo "$ORDERED_PATHS" | while read -r pkg_path; do
         fi
       done <<< "$BUILD_ONE_NEW_DEBS"
       if [ ${#deb_args[@]} -gt 0 ]; then
-        if ! apt-get install -y "${deb_args[@]}"; then
-          echo "::warning title=Install Failed::安装基础包 deb 失败，尝试继续后续包。"
-        fi
+        for deb_file in "${deb_args[@]}"; do
+          if ! apt-get install -y "$deb_file"; then
+            echo "::warning title=Install Failed::安装基础包 $deb_file 失败，稍后加入统一重试。"
+            FAILED_DEBS+=("$deb_file")
+          fi
+        done
       fi
     fi
   fi
@@ -165,18 +171,31 @@ echo "$ORDERED_PATHS" | while read -r pkg_path; do
         fi
       done <<< "$BUILD_ONE_NEW_DEBS"
       if [ ${#deb_args[@]} -gt 0 ]; then
-        if ! apt-get install -y "${deb_args[@]}"; then
-          echo "::warning title=Install Failed::安装 deb 失败，尝试继续后续包。"
-        fi
+        for deb_file in "${deb_args[@]}"; do
+          if ! apt-get install -y "$deb_file"; then
+            echo "::warning title=Install Failed::安装 $deb_file 失败，稍后加入统一重试。"
+            FAILED_DEBS+=("$deb_file")
+          fi
+        done
       fi
     fi
   fi
 done
 
+all_debs=()
 if compgen -G "artifacts/*.deb" > /dev/null; then
-  echo "开始安装收集到的 deb 包..."
-  if ! apt-get install -y ./artifacts/*.deb; then
-    echo "::warning title=Install Failed::统一安装 deb 失败，请检查依赖关系。"
+  for f in artifacts/*.deb; do
+    all_debs+=("./$f")
+  done
+fi
+if [ ${#FAILED_DEBS[@]} -gt 0 ]; then
+  all_debs+=("${FAILED_DEBS[@]}")
+fi
+
+if [ ${#all_debs[@]} -gt 0 ]; then
+  echo "开始安装收集到的 deb 包（包含先前失败的）..."
+  if ! apt-get install -y "${all_debs[@]}"; then
+    echo "::warning title=Install Failed::统一安装 deb 失败，请检查依赖关系。失败的 deb 列表: ${FAILED_DEBS[*]:-none}"
   fi
 else
   echo "::warning title=No Debs Collected::未收集到任何 deb 包，跳过安装。"
